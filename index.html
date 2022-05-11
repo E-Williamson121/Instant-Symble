@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instant Symble</title>
+    <script type="module" src="js/main.js"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons"
+  rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@500&display=swap" rel="stylesheet">
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"
+  />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+    <div id="container">
+        <div id="game">
+            <header>
+                <i class="help" id="help">help</i>
+                <h1 class="title"> INSTANT SYMBLE</h1>
+                <div class="inline-block">
+                    <i class="switch" id="switch">lightning_bolt</i>
+                    <i class="stats" id="stats">bar_chart</i>
+                </div>
+            </header>
+
+            <div class="gameheader">
+                <h2>Random puzzle #50</h2>
+            </div>
+
+            <div class="result">
+                <h2>placeholder text</h2>
+            </div>
+
+            <div id="board-container">
+                <div class="column">
+                    <div id="board">
+
+                    </div>
+                </div>
+                <div class="column">
+                    <div id="symble-board">
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="belowgame">
+                <div class="inline-block">
+                    <div class="inline-block">
+                        <div class="timericon">
+                            play_circle
+                        </div>
+                    </div>
+                    <div class="inline-block">
+                        <div class="timer">
+                            00:00
+                        </div>
+                    </div>
+                </div>
+                <div class="inline-block">
+                    <div class="mid-spacer">
+                    </div>
+                </div>
+                <div class="inline-block">
+                    <button class="giveup">Give Up</button>
+                </div>
+            </div>
+            <br></br>
+
+            <div id="keyboard">
+                <div class="keyboard-row">
+                    <button data-key="q">q</button>
+                    <button data-key="w">w</button>
+                    <button data-key="e">e</button>
+                    <button data-key="r">r</button>
+                    <button data-key="t">t</button>
+                    <button data-key="y">y</button>
+                    <button data-key="u">u</button>
+                    <button data-key="i">i</button>
+                    <button data-key="o">o</button>
+                    <button data-key="p">p</button>
+                </div>
+                <div class="keyboard-row">
+                    <div class="spacer-half"></div>
+                    <button data-key="a">a</button>
+                    <button data-key="s">s</button>
+                    <button data-key="d">d</button>
+                    <button data-key="f">f</button>
+                    <button data-key="g">g</button>
+                    <button data-key="h">h</button>
+                    <button data-key="j">j</button>
+                    <button data-key="k">k</button>
+                    <button data-key="l">l</button>
+                    <div class="spacer-half"></div>
+                </div>
+                <div class="keyboard-row">
+                    <button data-key="enter", class="wider-button">
+                        <span class="material-icons" style="position:relative; left:3px; top:3px; pointer-events:none;">subdirectory_arrow_right</span>
+                    </button>
+                    <button data-key="z">z</button>
+                    <button data-key="x">x</button>
+                    <button data-key="c">c</button>
+                    <button data-key="v">v</button>
+                    <button data-key="b">b</button>
+                    <button data-key="n">n</button>
+                    <button data-key="m">m</button>
+                    <button data-key="del", class="wider-button">
+                        <span class="material-icons", style="position:relative; top: 3px; pointer-events:none;">backspace</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="help-modal" class="modal">
+        <!-- Modal content -->
+        <div class="modal-content">
+            <div class="instructions">
+                <!-- <span class="close" id="close-help">&times;</span> -->
+
+                <p>Welcome to <em>Instant Symble</em>, a spin-off of the popular Wordle-like game, <a style="font-weight:bold" href="https://www.symble.app/">Symble</a>.&nbsp;</p>
+                <p>In a game of <a style="font-weight:bold" href="https://www.symble.app/">Symble</a>, a hidden word is selected and a set of three unique symbols are chosen at random.&nbsp;</p>
+                <p>These symbols are each assigned one of the following three meanings:&nbsp;</p>
+                <ol>
+                    <li>The letter of the hidden word in the symbol&apos;s position is in the same spot in the guessed word.&nbsp;</li>
+                    <li>The letter of the hidden word in the symbol&apos;s position is in a different spot in the guessed word.&nbsp;</li>
+                    <li>The letter of the hidden word in the symbol&apos;s position is not in the guessed word.</li>
+                </ol>
+                <image src="symble.png" id="symbles"></image>
+                <p>For example, in the game shown above,&nbsp;</p>
+                <ul>
+                    <li>The hidden word is <strong>LIPID</strong>.</li>
+                    <li>The <span style="color: rgb(255, 0, 0);">red</span> moon corresponds to the 1st meaning.</li>
+                    <li>The <span style="color: rgb(255, 0, 255);">pink</span> pentagon corresponds to the 2nd meaning.</li>
+                    <li>The <span style="color: rgb(119, 0, 255);">purple</span> circle corresponds to the 3rd meaning.</li>
+                </ul>
+                <p>The information of which symbol corresponds to which meaning, and the value of the hidden word, are both not disclosed and must be figured out while solving the puzzle.&nbsp;</p>
+                <p>In a game of <em>Instant Symble</em>, you are already given two starting words, and the corresponding symbols are displayed. From the words and symbols given, the solution is narrowed down to a single possibility.&nbsp;</p>
+                <p>To win, you must correctly determine this solution.</p>
+                <p>Good luck.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="stats-modal" class="modal">
+        <!-- Modal content -->
+        <div class="modal-content">
+            <!-- <span class="close" id="close-stats">&times;</span> -->
+
+            <h2 style = "align-self: center;">STATISTICS</h2>
+
+            <div class="statspanel">
+                <div class="inline-block">
+                    <div class="stat">
+                        <h3><span id="total-played">100</span></h3>
+                        <h6>Total played</h6>                    
+                    </div>
+                </div>
+
+                <div class="inline-block">
+                    <div class="stat">
+                        <h3><span id="win-pct">100%</span></h3>
+                        <h6>Win %</h6>                    
+                    </div>
+                </div>
+
+                <div class="inline-block">
+                    <div class="stat">
+                        <h3><span id="current-streak">20</span></h3>
+                        <h6>Current Streak</h6>                    
+                    </div>
+                </div>
+
+                <div class="inline-block">
+                    <div class="stat">
+                        <h3><span id="best-streak">50</span></h3>
+                        <h6>Best Streak</h6>                    
+                    </div>
+                </div>
+            </div>
+
+            <br></br>
+            <div class="statsbuttons" id="postgamestats">
+                <div class="inline-block" id="countdown">
+                    <div class="bigtimer">
+                        <h6>Time until next:</h6>
+                        <span id="countdowntimer">00:00:00</span>
+                    </div>
+                </div>
+                <div class="inline-block" id="replay">
+                    <div class="rep-block">
+                        <button class="replay" id="replaybutton">Replay</button>
+                    </div>
+                </div>
+                <div class="inline-block">
+                    <div class="stats-spacer">
+                    </div>
+                </div>
+                <div class="inline-block">
+                    <div class="share-block">
+                        <button class="share" id="sharebutton">Share</button>
+                    </div>
+                </div>
+            </div>
+            <br></br>
+        </div>
+    </div>
+</body>
+</html>

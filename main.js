@@ -875,7 +875,8 @@ function handleSubmitWord() {
         }
 
         // set the boolean flag to indicate the game is over.
-        gameover = true
+        gameover = true;
+        const endturn = guessedWords.length;
         
         // stop the timer from ticking, change the appearance of the timer to a tick circle.
         clearInterval(interval);
@@ -945,6 +946,7 @@ function handleSubmitWord() {
 
         // set the boolean flag to indicate the game is over.
         gameover = true;
+        const endturn = guessedWords.length;
         
         // stop the timer from ticking, change the timer icon to a tick circle
         clearInterval(interval);

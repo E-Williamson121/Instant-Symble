@@ -265,6 +265,7 @@ function initialize_puzzle(){
         index = (seed + 2304) % puzzles.length;
     } else {
         if (urlpuzzle != null) {
+            console.log(puzzles[Number(urlpuzzle) - 1)]);
             if (!(puzzles[Number(urlpuzzle) - 1)]) == undefined) {
                 // selecting random puzzle based on URL argument: clear local random puzzle progress, then use the URL argument to select a new one.
                 remove_random_locals()

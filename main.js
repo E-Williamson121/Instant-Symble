@@ -1,3 +1,4 @@
+// Implementing MT19937 for seeded generation of a few random colours and symbols is *probably* overkill, but it's what I'm doing here.
 let w = 32;
 let n = 624;
 let m = 397;
@@ -73,6 +74,10 @@ function twist() {
     ind = 0;
 }
 
+// --------------------------------------------------------------------------------------------
+// MT19937 implementation over, now for the rest of the code.
+
+// get valid word set from file
 let wordSet = async file => {
     const response = await fetch(file);
     const text = await response.text();
@@ -81,6 +86,7 @@ let wordSet = async file => {
     return wordSet;
 }
 
+// get set of valid puzzles from file, puzzles are of the form SOL:WORD1,WORD2 and are separated by ;.
 let puzzleSet = async file => {
     const response = await fetch(file);
     const text = await response.text();
@@ -89,6 +95,7 @@ let puzzleSet = async file => {
     return puzzleSet;
 }
 
+// pad a number to length 2 by prepending a 0 if less than 10.
 function zeropad(num){
     if (num < 10){
         return (`0${num}`)
@@ -97,12 +104,14 @@ function zeropad(num){
     }
 }
 
+// display a standard timer of minutes and seconds
 function display_timer(time){
     let mins = Math.floor(time/60)
     let secs = time - mins*60;
     return (`${zeropad(mins)}:${zeropad(secs)}`);
 }
 
+// fancier timer (puts AA:BB into the format AAm BBs)
 function fancy_timer(time){
     let mins = Math.floor(time/60)
     let secs = time - mins*60;
@@ -113,6 +122,7 @@ function fancy_timer(time){
     }
 }
 
+// timer with hours
 function display_hour_timer(time){
     let hours = Math.floor(time/3600);
     let minstime = time - hours*3600;
@@ -121,8 +131,8 @@ function display_hour_timer(time){
     return (`${zeropad(hours)}:${zeropad(mins)}:${zeropad(secs)}`);
 }
 
+// takes a puzzle of the form "SOL:WORD1,WORD2" and determines the words and solution
 function parse_puzzle(puzzle){
-    // console.log(puzzle);
     let outer = puzzle.split(":");
     let sol = outer[0];
     let words = outer[1].split(",");
@@ -132,26 +142,35 @@ function parse_puzzle(puzzle){
     return( [sol, word1, word2] );
 }
 
+// gets the wordle colouring that will be produced from guessing a given guess against the solution.
+// 0 = green, 1 = yellow, 2 = gray.
 function get_wordle_colours(guess, sol){
-    let cols = [2, 2, 2, 2, 2];
+    let cols = [2, 2, 2, 2, 2]; // colours are all gray by default
     let observed = [];
 
+    // first pass over the guess
     for (var i = 0; i < 5; i++) {
         if (sol.charAt(i) == guess.charAt(i)) {
+            // character in the same position, so green
             cols[i] = 0;
         } else {
+            // other characters are registered as observed characters.
             observed.push(guess.charAt(i));
         }
     }
 
+    // second pass over the guess
     for (var j = 0; j < 5; j++) {
         if (observed.includes(sol.charAt(j))) {
             if (!(sol.charAt(j) == guess.charAt(j))) {
+                // character is in the guess, but not in that position, so yellow
+                cols[j] = 1
+                
+                // remove the character from observed list (so we don't count it again)
                 let index = observed.indexOf(sol.charAt(j));
                 if (index !== -1) {
                     observed.splice(index, 1);
                 }
-                cols[j] = 1
             }
         }
     }
@@ -159,6 +178,7 @@ function get_wordle_colours(guess, sol){
     return cols;
 }
 
+// samples x items from an array using the built in js math.random.
 function sample(arr, x){
     let samp = [];
     while (samp.length < x){
@@ -170,6 +190,7 @@ function sample(arr, x){
     return samp;
 }
 
+// samples x items from an array using the MT19937 given earlier
 function sample_with_gen(arr, x){
     let samp = [];
     while (samp.length < x){
@@ -182,7 +203,8 @@ function sample_with_gen(arr, x){
     return samp;
 }
 
-function initialize_puzzle(){
+// functionality to initialize game puzzles
+function initialize_puzzle(){    
     // hide game result message (if visible)
     result.style.setProperty("color", "black");
 
@@ -202,24 +224,30 @@ function initialize_puzzle(){
     let dailyguess = ""
     if (gamemode == "daily"){
         // daily puzzle selection:
-        // get current day, use to seed to puzzle
+        // get current day, use to seed to MT19937 RNG.
         let seed = get_day();
         startday = seed;
         let prevday = seed
+        
         // setup local flags for daily puzzle
         if (!(window.localStorage.getItem("PrevDaily") == null)) {
+            // previous daily puzzle progress found locally.
             prevday = Number(window.localStorage.getItem("PrevDaily"))
+            
             if (!(prevday == seed)) {
+                // if the day has changed, reset stored daily puzzle progress to that of the new daily puzzle.
                 window.localStorage.setItem("PrevDaily", seed)
                 window.localStorage.setItem("DailyTime", 0)
                 window.localStorage.setItem("DailyGuess", "")
                 gametime = 0
                 dailyguess = ""
             } else {
+                // otherwise, load the daily puzzle from stored progress.
                 dailyguess = window.localStorage.getItem("DailyGuess")
                 gametime = Number(window.localStorage.getItem("DailyTime"))
             }
         } else {
+            // no previous daily puzzle progress found locally, setup some local variables to store future progress.
             window.localStorage.setItem("PrevDaily", seed)
             window.localStorage.setItem("DailyTime", 0)
             window.localStorage.setItem("DailyGuess", "")
@@ -227,36 +255,66 @@ function initialize_puzzle(){
             dailyguess = ""
         }
         head.innerHTML = `<h2>Daily puzzle #${seed+1}</h2>`
-        // rng setup, used to seed for symbol and colour selection
+        
+        // seed the MT19337 RNG, and use to generate symbols and colours.
         let gen = seed_mt(seed*3291+230293);
         symbles = sample_with_gen(all_symbles, 3, gen);
         coloursample = sample_with_gen(all_colours, 3, gen);
+        
         // get index from seed (with shift)
         index = (seed + 2304) % puzzles.length;
     } else {
         if (urlpuzzle != null) {
-            // selecting random puzzle based on URL
-            remove_random_locals()
-            symbles = sample(all_symbles, 3)
-            coloursample = sample(all_colours, 3)
-            index = Number(urlpuzzle)-1
-            window.localStorage.setItem("PrevRandom", index)
-            window.localStorage.setItem("PrevRandomColours", JSON.stringify(coloursample))
-            window.localStorage.setItem("PrevRandomSymbols", JSON.stringify(symbles))
-            gametime = 0
-            head.innerHTML = `<h2>Random puzzle #${index+1}</h2>`
+            if (puzzles[Number(urlpuzzle) - 1)]) {
+                // selecting random puzzle based on URL argument: clear local random puzzle progress, then use the URL argument to select a new one.
+                remove_random_locals()
+                symbles = sample(all_symbles, 3)
+                coloursample = sample(all_colours, 3)
+                index = Number(urlpuzzle)-1
+                
+                // update local storage to store the new random puzzle
+                window.localStorage.setItem("PrevRandom", index)
+                window.localStorage.setItem("PrevRandomColours", JSON.stringify(coloursample))
+                window.localStorage.setItem("PrevRandomSymbols", JSON.stringify(symbles))
+                gametime = 0
+                head.innerHTML = `<h2>Random puzzle #${index+1}</h2>`
+            } else {
+                // url argument invalid, so apply the usual random puzzle selection methods
+                if (window.localStorage.getItem("PrevRandom") == null) {
+                    // no random puzzle progress found locally, so select at random using inbuilt Math.random
+                    symbles = sample(all_symbles, 3)
+                    coloursample = sample(all_colours, 3)
+                    index = Math.floor(Math.random()*puzzles.length);
+                    
+                    // update local storage to store the new random puzzle
+                    window.localStorage.setItem("PrevRandom", index)
+                    window.localStorage.setItem("PrevRandomColours", JSON.stringify(coloursample))
+                    window.localStorage.setItem("PrevRandomSymbols", JSON.stringify(symbles))
+                    gametime = 0
+                } else {
+                    // local random puzzle progress found, so reload the in-progress random puzzle from local variables.
+                    index = Number(window.localStorage.getItem("PrevRandom"))
+                    coloursample = JSON.parse(window.localStorage.getItem("PrevRandomColours"))
+                    symbles = JSON.parse(window.localStorage.getItem("PrevRandomSymbols"))
+                    gametime = Number(window.localStorage.getItem("RandomGameTime"))
+                }
+                head.innerHTML = `<h2>Random puzzle #${index+1}</h2>`
+            }
         } else {
             // random puzzle selection:
-            // simple random selections using in-built random module
             if (window.localStorage.getItem("PrevRandom") == null) {
+                // no random puzzle progress found locally, so select at random using inbuilt Math.random.
                 symbles = sample(all_symbles, 3)
                 coloursample = sample(all_colours, 3)
                 index = Math.floor(Math.random()*puzzles.length);
+                
+                // update local storage to store the new random puzzle
                 window.localStorage.setItem("PrevRandom", index)
                 window.localStorage.setItem("PrevRandomColours", JSON.stringify(coloursample))
                 window.localStorage.setItem("PrevRandomSymbols", JSON.stringify(symbles))
                 gametime = 0
             } else {
+                // local random puzzle progress found, so reload the in-progress random puzzle from local variables.
                 index = Number(window.localStorage.getItem("PrevRandom"))
                 coloursample = JSON.parse(window.localStorage.getItem("PrevRandomColours"))
                 symbles = JSON.parse(window.localStorage.getItem("PrevRandomSymbols"))
@@ -273,6 +331,7 @@ function initialize_puzzle(){
     interval = setInterval(function() {
         if (!(gameover) && !(overlay)) {
             gametime = gametime + 1;
+            // update the (mode-appropriate) local storage variable each time the timer changes.
             if (gamemode == "daily") {
                 window.localStorage.setItem("DailyTime", gametime)
             } else {
@@ -282,12 +341,11 @@ function initialize_puzzle(){
         }
     }, 1000);
 
-    // automatically enter the first two words
+    // to finish setting up the puzzle, automatically enter the first two words of the result.
     let puzzle = parse_puzzle(puzzles[index]);
-    let answer = puzzle[0];
+    target = puzzle[0];
     let word1 = puzzle[1];
     let word2 = puzzle[2];
-    target = answer;
 
     for(var i = 0; i < 5; i++){
         let letter = word1.charAt(i)
@@ -302,18 +360,21 @@ function initialize_puzzle(){
     handleSubmitWord()
 
     if (gamemode == "daily") {
+        // daily mode automatic previous guess entry.
         if (dailyguess == "xxxxx") {
-            // automatically give up
-            statslock = true;
+            // xxxxx means the user gave up, so automatically proceed to enact giving up the puzzle.
+            statslock = true; // lock score stats, so that the user score doesn't change each time they see their previous result.
             gaveup = true;
+            
             for(var i = 0; i < 5; i++){
                 let letter = target.charAt(i)
                 updateGuessedWords(letter)
             }
             handleSubmitWord()
         } else if (!(dailyguess == "")) {
-            // automatically enter the daily guess and submit
-            statslock = true;
+            // a non-blank guess was made, automatically enter this guess and submit
+            statslock = true; // lock score stats, so that the user score doesn't change each time they see their previous result.
+            
             for(var i = 0; i < 5; i++){
                 let letter = dailyguess.charAt(i)
                 updateGuessedWords(letter)
@@ -323,33 +384,41 @@ function initialize_puzzle(){
     }
 }
 
+// functionality to empty the current puzzle.
 function clear_puzzle(){
-    clearInterval(interval);
+    clearInterval(interval); // delete the event being used to tick the timer.
     const gameBoard = document.getElementById("board")
     const symbleBoard = document.getElementById("symble-board")
 
+    // reset the appearance of all keyboard keys
     for (let j = 0; j < keys.length; j++) {
         keys[j].style.setProperty("background-color", "rgb(130,130,130)");
     }
 
+    // delete all the puzzle tiles and re-generate them.
     gameBoard.innerHTML = ''
     symbleBoard.innerHTML = ''
     createSquares();
 }
 
+// functionality to restart the puzzle interface.
 function restart(){
+    // clear the puzzle board.
     clear_puzzle()
 
+    // get rid of all the currently scheduled timeout events.
     for (var j = 0; j < timeouts.length; j++) {
         clearTimeout(timeouts[j])
     }
     timeouts = []
 
+    // initialize a new puzzle.
     initialize_puzzle()
 }
 
+// gets the current day, relative to the day the puzzle game started.
 function get_day(){
-    const init = new Date("05/08/2022"); // date the game first started (MM/DD/YYYY)
+    const init = new Date("05/13/2022"); // date the game first started (MM/DD/YYYY) = the day after today.
 
     let start = Date.now() - init.getTime();
     let day = start/(1000*60*60*24)
@@ -357,12 +426,12 @@ function get_day(){
     return (Math.floor(day));
 }
 
+// calculates remaining time until the next day, returning the display string for an hour timer.
 function calculate_remaining_time(){
     let dt = new Date();
     let current_sec = dt.getSeconds() + (60 * dt.getMinutes()) + (3600 * dt.getHours());
     let remaining = (60*60*24) - current_sec;
-    // console.log(get_day())
-    // console.log(startday)
+    
     if((remaining > 0) && (get_day() == startday)){
         return display_hour_timer(remaining);
     } else {
@@ -370,6 +439,7 @@ function calculate_remaining_time(){
     }
 }
 
+// generates a nice copy-pastable post-game summary.
 function generate_summary() {
     let colour_symbols = ["🟥", "🟩", "🟦", "🟨", "🟧", "🟪"]
     let colours = ["rgb(255, 0, 0)", "rgb(0, 255, 0)", "rgb(0, 0, 255)", "rgb(255, 255, 0)", "rgb(255, 119, 0)", "rgb(119, 0, 255)"]
@@ -377,18 +447,19 @@ function generate_summary() {
     let col = "";
 
     let read = head.innerHTML
-    // `<h2>[header text]</h2>`
-    text = text + read.slice(4, read.length - 5)
+    text = text + read.slice(4, read.length - 5) // obtain game number from header.
 
-    text = text.replace("puzzle", "Instant Symble")
+    text = text.replace("puzzle", "Instant Symble") // swap "puzzle" with Instant Symble
 
+    // game outcome
     if (!(wongame)) {
         text = text + ": X/3"
     } else {
         text = text + ": 3/3"
     }
+    
+    // display time (fancy), and the colours for the first two rows of symbols that were in the game.
     text = text + `, ${fancy_timer(gametime)}\nFirst two rows of symbols:\n`
-
     for (var i = 0; i < 10; i++) {
         const tile = document.getElementById(String(18 + i + 1));
         col = tile.children[0].style.getPropertyValue("color")
@@ -399,15 +470,17 @@ function generate_summary() {
         }
     }
 
+    // advertisement url (include the puzzle number if the puzzle was a random puzzle).
     text = text + "play at https://www.InstantSymble.xyz"
     if (gamemode == "random") {
         text = text + `?n=${findnumber(read)}`
     }
 
+    // automatically copy to clipboard.
     copyToClipboard(text);
-
 }
 
+// find the number, NUM, from a string in the format "USELESSTEXT #NUM USELESSTEXT"
 function findnumber(text) {
     let n = ""
     for (var i = 0; i < text.length; i++) {
@@ -421,6 +494,7 @@ function findnumber(text) {
 
 }
 
+// utility function for copying a string to clipboard
 function copyToClipboard(text) {
     navigator.permissions.query({name: "clipboard-write"}).then(result => {
         if (result.state == "granted" || result.state == "prompt") {
@@ -429,6 +503,8 @@ function copyToClipboard(text) {
     });
 }
 
+// --------------------------------------------------------------------------------------------
+// global variables and initialization functions
 let valid_words = await wordSet("./extendedwordles.txt");
 let puzzles = await puzzleSet("./puzzlesv5.txt");
 
@@ -445,7 +521,7 @@ const head = document.querySelectorAll(".gameheader")[0];
 const timer = document.querySelectorAll(".timer")[0];
 const timericon = document.querySelectorAll(".timericon")[0];
 
-// Get the button that opens the modal
+// event for the switch mode button (change appearance, change game mode, then reset the puzzle board).
 const switchmode = document.getElementById("switch");
 switchmode.addEventListener("click", function () {
     if (gamemode == "daily"){
@@ -458,6 +534,7 @@ switchmode.addEventListener("click", function () {
     restart();
 });
 
+// obtains the url content, x, for selecting a random puzzle via [URL]/?n=x
 const params = new URLSearchParams(window.location.search)
 let urlpuzzle = params.get("n")
 
@@ -492,13 +569,19 @@ if (gamemode == "daily"){
     switchmode.textContent = "today";
 }
 
-// console.log(display_timer(5));
-
+// once all the constants are set up, initialize.
 initialize_puzzle();
 
+// --------------------------------------------------------------------------------------------
+// ingame appearance and guess handling functionality
+
+// display the true appearance of a symbol (after the guessno-th guess).
 function set_symble(ns, cols, guessno){
     let n = ns[0]
-    ns.splice(0, 1)
+    ns.splice(0, 1) // remove the first item from the list ns.
+    // (crucially, as ns is actually just a reference to a list, this removes the first item for subsequent calls of the function using that same list.)
+    
+    // control animation, content, and appearance, using the colour data, cols, passed in
     const newspan = document.createElement('span')
     const symbleBlock = document.getElementById(String(18 + (guessno-1)*5 + n + 1));
     newspan.textContent = symbles[cols[n]];
@@ -515,8 +598,13 @@ function set_symble(ns, cols, guessno){
     })
 }
 
+// show the appearance of all the symbols (after the guessno-th guess).
 function show_symbles(guess, guessno){
+    // produce symble colouring (wordle colouring but with guess and solution swapped)
     let cols = get_wordle_colours(guess, target);
+    
+    // seemingly necessary hack: push the order in which symbols will update into a list, pass said list as a parameter,
+    // then trigger the function for updating these symbols once every 0.25s.
     const interval = 250;
     let is = [0,1,2,3,4];
     for (var i = 0; i < 5; i++){
@@ -524,6 +612,7 @@ function show_symbles(guess, guessno){
     }
 }
 
+// colour the keyboard keys based on a guess (key is coloured dark gray if its letter has been included in the guess).
 function colour_keys(guess){
     for (var i = 0; i < 5; i++){
         let letter = guess.charAt(i)
@@ -535,6 +624,7 @@ function colour_keys(guess){
     }
 }
 
+// gray out all the tiles for the guessno-th guess (ultimately same formatting as wordle tiles get when not in a word).
 function gray_tiles(guessno){
     for (var i = 0; i < 5; i++){
         const tile = document.getElementById(String((guessno-1)*5 + i + 1));
@@ -543,13 +633,22 @@ function gray_tiles(guessno){
     }
 }
 
+// reveal all the answers post-game
 function reveal_answers(numguesses){
     for (var guess=0; guess < numguesses; guess++){
+        // for each guess, get the guessed word, then produce the true wordle colouring
         let guessword = guessedWords[guess].join('');
         let cols = get_wordle_colours(target, guessword);
+        
         for (var i = 0; i < 5; i++){
+            // for each tile in the guess, control the animations to flip the tile around, change the colour, and then unflip the tile.
             const tile = document.getElementById(String((guess)*5 + i + 1));
+            
+            // seemingly necessary hack: setting the tile attribute to data so that the tile knows what colour it is when the animation is done.
+            // (if this wasn't done, the tile wouldn't know what colour to be as the colour data it has references to would have already been changed by this code).
             tile.setAttribute("mycol", cols[i])
+            
+            // animation control
             tile.classList.add("animate__flipOutX");
             tile.style.setProperty("--animate-duration", "1s");
             tile.addEventListener("animationend", () => {
@@ -572,11 +671,13 @@ function reveal_answers(numguesses){
     }
 }
 
+// utility function for obtaining the current guessed word array.
 function getCurrentWordArr(){
     const totalGuessed = guessedWords.length;
     return guessedWords[totalGuessed - 1]
 }
 
+// colour the guessno-th word letters red (this is done if we have an invalid word as a way of signalling to the user that it is invalid so won't be accepted)
 function colour_red(guessno){
     for (var i = 0; i < 5; i++){
         const tile = document.getElementById(String((guessno-1)*5 + i + 1));
@@ -585,6 +686,7 @@ function colour_red(guessno){
     }
 }
 
+// colour the guessno-th word letters white (essentially, undo the functionality of colour_red(guessno) above)
 function colour_white(guessno){
     for (var i = 0; i < 5; i++){
         const tile = document.getElementById(String((guessno-1)*5 + i + 1));
@@ -593,25 +695,34 @@ function colour_white(guessno){
     }
 }
 
+// add a new letter to the guessed word
 function updateGuessedWords(letter) {
+    // get the current word guess array
     const currentArr = getCurrentWordArr();
     if (currentArr.length < 5) {
+        // there is space in the array, so add the new letter to the end
         currentArr.push(letter);
 
+        // increase the global index storing position in the current word, and get the current tile.
         const availableSpaceEl = document.getElementById(String(availableSpace));
         availableSpace = availableSpace + 1
 
+        // pretty animation for the current tile.
         availableSpaceEl.classList.add("animate__pulse");
         availableSpaceEl.style.setProperty("--animate-duration", "0.5s");
         availableSpaceEl.addEventListener("animationend", () => {
             availableSpaceEl.classList.remove("animate__pulse");
         })
+        
+        // update the current tile to store the new letter
         availableSpaceEl.textContent = letter;
 
         if (currentArr.length == 5){
+            // a full length word guess comes with an extra check that the guess is a valid word
             const guess = currentArr.join('');
 
             if (!(valid_words.includes(guess))) {
+                // if it is not, colour the word red.
                 redword = true
                 colour_red(guessedWords.length)
                 return;
@@ -620,22 +731,28 @@ function updateGuessedWords(letter) {
     }
 }
 
+// delete the last letter from a guessed word
 function deleteGuessedWords() {
     if (redword){
+        // if the word was previously coloured red, now colour it white.
         colour_white(guessedWords.length)
     }
 
+    // get the current word array
     const currentArr = getCurrentWordArr();
     if (currentArr.length > 0) {
+        // remove the last letter, decrease the global index storing position in the current word.
         currentArr.pop();
 
         availableSpace = availableSpace - 1
+        
+        // blank out the current word tile
         const availableSpaceEl = document.getElementById(String(availableSpace));
-
         availableSpaceEl.textContent = "";
     }
 }
 
+// utility function to delete local variables storing information about the current random game.
 function remove_random_locals() {
     window.localStorage.removeItem("PrevRandom")
     window.localStorage.removeItem("PrevRandomColours")
@@ -643,14 +760,18 @@ function remove_random_locals() {
     window.localStorage.removeItem("RandomGameTime")
 }
 
+// utility function for updating personal win/loss stats after a game has finished.
 function updateGlobalStats(gamewon) {
+    // if the stats aren't locked (i.e.: not automatically filling the game in for the user to show a previous outcome)
     if (!(statslock)) {
+        // default values for wins, games played, streak, and best streak.
         let statwins = 0
         let statgames = 0
         let statstreak = 0
         let statbeststreak = 0
 
         if (!(window.localStorage.getItem("TotalWins") == null)) {
+            // if local variables for stats are found, load them from storage
             statwins = Number(window.localStorage.getItem("TotalWins"))
             statgames = Number(window.localStorage.getItem("TotalGames"))
             statstreak = Number(window.localStorage.getItem("CurrentStreak"))
@@ -677,37 +798,47 @@ function updateGlobalStats(gamewon) {
     }
 }
 
+// update the statistics display to show win/loss statistics.
 function updateStatsDisplay() {
+    // get references to all the elements where we'll write the results of our calculations.
     const totalplayed = document.getElementById("total-played")
     const winpct = document.getElementById("win-pct")
     const currentstreak = document.getElementById("current-streak")
     const beststreak = document.getElementById("best-streak")
 
+    // default values for wins, games played, streak, and best streak.
     let statwins = 0
     let statgames = 0
     let statstreak = 0
     let statbeststreak = 0
 
     if (!(window.localStorage.getItem("TotalWins") == null)) {
+        // if local variables for stats are found, load them from storage
         statwins = Number(window.localStorage.getItem("TotalWins"))
         statgames = Number(window.localStorage.getItem("TotalGames"))
         statstreak = Number(window.localStorage.getItem("CurrentStreak"))
         statbeststreak = Number(window.localStorage.getItem("BestStreak"))
     }
 
+    // total number of games played is already just stored in local storage, as are streak and best streak.
     totalplayed.textContent = statgames
-    if (statwins == 0){
+    if (statgames == 0){
+        // if no games have been played, win% = W/0 (error). correct by just setting it to 0%.
         winpct.textContent = 0
     } else {
+        // otherwise, win% = round(games_won/games_played)
         winpct.textContent = Math.round(100*statwins/statgames)
     }
     currentstreak.textContent = statstreak
     beststreak.textContent = statbeststreak
 }
 
+// functionality for controlling the submission of a guess word
 function handleSubmitWord() {
+    // get the current word array
     const currentWordArr = getCurrentWordArr();
     if (currentWordArr.length != 5) {
+        // if not enough letters, clear the guess out, then return.
         const size = currentWordArr.length
         for(var i = 0; i < size; i++) {
             deleteGuessedWords()
@@ -715,35 +846,45 @@ function handleSubmitWord() {
         return;
     }
 
+    // get the current guess word
     const guess = currentWordArr.join('');
 
     if (!(valid_words.includes(guess))) {
+        // if the guess word is not a valid word, return
         return;
     }
 
-    // place to include colouring/animations
+    // colouring and animations for the guess submission
     show_symbles(guess, guessedWords.length);
     gray_tiles(guessedWords.length);
     colour_keys(guess);
 
     if (guess == target){
-        // game won
+        // guess was the target, so we won the game. Update global stats (only say we won if we didn't give up).
         updateGlobalStats(!gaveup)
         if (gamemode == "daily") {
+            // store game outcome if we're in daily mode
             if (gaveup) {
                 window.localStorage.setItem("DailyGuess", "xxxxx")
             } else {
                 window.localStorage.setItem("DailyGuess", target)
             }
         } else {
+            // otherwise, remove the random game from local storage so a new random game can be loaded.
             remove_random_locals()
         }
 
+        // set the boolean flag to indicate the game is over.
         gameover = true
-        const endturn = guessedWords.length;
+        
+        // stop the timer from ticking, change the appearance of the timer to a tick circle.
         clearInterval(interval);
         timericon.textContent = "check_circle";
+        
+        // reveal the wordle colourings of each guess 1.5 seconds later
         timeouts.push(setTimeout(() => reveal_answers(endturn), 1500))
+        
+        // then, after another 0.5 seconds, show the game outcome string (gave up or won, in this case).
         timeouts.push(setTimeout(() => {
             result.style.setProperty("color", "gainsboro");
             if (gaveup){
@@ -753,13 +894,17 @@ function handleSubmitWord() {
                 result.innerHTML = `<h2>You won!</h2>`
             }
         }, 2000));
+        
+        // finally, after another second, automatically open the stats modal.
         timeouts.push(setTimeout(() => {
+            // code for automatically opening stats modal
             const modal = document.getElementById("stats-modal");
             const replay = document.getElementById("replay");
             const countdown = document.getElementById("countdown");
         
             postgamestats.style.display = "flex";
             if (gamemode == "daily"){
+                // daily mode version - set up countdown timer, hide replay button.
                 countdown.style.display = "inline-block";
                 replay.style.display = "none";
                 countdowntimer.textContent = calculate_remaining_time()
@@ -767,15 +912,19 @@ function handleSubmitWord() {
                     countdowntimer.textContent = calculate_remaining_time()
                 }, 1000);
             } else {
+                // random mode version - hide countdown timer, show replay button
                 replay.style.display = "inline-block";
                 countdown.style.display = "none";
             }
 
+            // hide the help modal automatically (so the ugly "stats visible over help" situation can't happen.
             const helpmodal = document.getElementById("help-modal");
             helpmodal.style.display = "none";
-
+            
+            // update the display of stats based on local storage win/loss statistics
             updateStatsDisplay()
 
+            // finally, actually show the stats modal
             modal.style.display = "block";
             overlay = true;
         }, 3000));
@@ -783,31 +932,43 @@ function handleSubmitWord() {
     }
 
     if (guessedWords.length == 3) {
-        // game lost
+        // ran out of guesses, so the game was lost, update global stats to say we did not win.
         updateGlobalStats(false)
 
         if (gamemode == "daily") {
+            // daily mode, store the game outcome
             window.localStorage.setItem("DailyGuess", guess)
         } else {
+            // random mode, remove random game from local storage so the next one can load
             remove_random_locals()
         }
 
+        // set the boolean flag to indicate the game is over.
         gameover = true;
-        const endturn = guessedWords.length;
+        
+        // stop the timer from ticking, change the timer icon to a tick circle
         clearInterval(interval);
         timericon.textContent = "check_circle";
+        
+        // reveal the wordle colourings of each guess 1.5 seconds later
         timeouts.push(setTimeout(() => reveal_answers(endturn), 1500))
+        
+        // then, after another 0.5 seconds, show the game outcome string (gave up or won, in this case).
         timeouts.push(setTimeout(() => {
             result.style.setProperty("color", "gainsboro");
             result.innerHTML = `<h2>You lost. The word was ${target}</h2>`
         }, 2000));
+        
+        // finally, after another second, automatically open the stats modal.
         timeouts.push(setTimeout(() => {
+            // code for automatically opening stats modal
             const modal = document.getElementById("stats-modal");
             const replay = document.getElementById("replay");
             const countdown = document.getElementById("countdown");
         
             postgamestats.style.display = "flex";
             if (gamemode == "daily"){
+                // daily mode version - set up countdown timer, hide replay button.
                 countdown.style.display = "inline-block";
                 replay.style.display = "none";
                 countdowntimer.textContent = calculate_remaining_time()
@@ -815,28 +976,36 @@ function handleSubmitWord() {
                     countdowntimer.textContent = calculate_remaining_time()
                 }, 1000);
             } else {
+                // random mode version - hide countdown timer, show replay button
                 replay.style.display = "inline-block";
                 countdown.style.display = "none";
             }
 
+            // hide the help modal automatically (so the ugly "stats visible over help" situation can't happen.
             const helpmodal = document.getElementById("help-modal");
             helpmodal.style.display = "none";
 
+            // update the display of stats based on local storage win/loss statistics
             updateStatsDisplay()
 
+            // finally, actually show the stats modal
             modal.style.display = "block";
             overlay = true;
         }, 3000));
         return;
+        
     } else {
+        // if guesses still remain, set the border of the tiles of the subsequent guess to be white (highlighting to catch the users's eye)
         for (var i = 0; i < 5; i++){
             const tile = document.getElementById(String((guessedWords.length)*5 + i + 1));
             tile.style.setProperty("border-color", "#fff");
         }
     }
+    // push a blank word to the guess list.
     guessedWords.push([]);
 }
 
+// functionality for setting up game board tiles
 function createSquares() {
     const gameBoard = document.getElementById("board")
     const symbleBoard = document.getElementById("symble-board")
@@ -844,6 +1013,7 @@ function createSquares() {
     let index = 0;
 
     for (let j = 0; j < 3; j ++) {
+        // tiles and symbols are each placed into three rows, last row is row2 type (just means there's no bottom border)
         let row = document.createElement("div");
         if(j == 2) {
             row.classList.add("row2");
@@ -858,6 +1028,7 @@ function createSquares() {
             symblerow.classList.add("row");
         }
 
+        // spacing element is also added (this is to make the symbols and letters have a bit of a gap in the middle where the vertical border will go)
         let spacer = document.createElement("div");
         spacer.classList.add("spacer");
         row.appendChild(spacer);
@@ -865,14 +1036,18 @@ function createSquares() {
         let symblespacer = document.createElement("div");
         symblespacer.classList.add("spacer2");
         symblerow.appendChild(symblespacer);
-        
+
+        // add the 5 symbol and letter tiles
         for (let k = 0; k < 5; k ++) {
+            // tiles are animatable, first row is set by default to have white border for highlighting (pending the first guess from the player)
             let square = document.createElement("div");
             square.classList.add("square");
             square.classList.add("animate__animated");
             if (j == 0){
                 square.style.setProperty("border-color", "#fff");
             }
+            
+            // letter tiles are given an id to allow data entry, symbols have the same id, just +18.
             square.setAttribute("id", index+1);
             row.appendChild(square);
 
@@ -884,38 +1059,52 @@ function createSquares() {
 
             index ++
         }
+        
+        // we add the rows of symbols and letters to the game boards when done building them.
         gameBoard.appendChild(row);
         symbleBoard.appendChild(symblerow);
     }
 } 
 
+// --------------------------------------------------------------------------------------------
+// game event and modal setup
+
+// keyboard button onclick events
 for (let i = 0; i < keys.length; i++) {
     keys[i].onclick = ({target}) => {
+        // keyboard buttons only work if during a game and not in an overlay menu
         if (!(gameover) && !(overlay)) {
             const letter = target.getAttribute("data-key");
 
             if (letter == "enter") {
+                // enter key - submits the current word
                 handleSubmitWord()
             } else if (letter == "del") {
+                // backspace key - deletes the last letter
                 deleteGuessedWords();
             } else {
+                // all other keys add a new letter
                 updateGuessedWords(letter);
             }
         }
     }
 }
 
+// give up button onclick event
 giveup.onclick = ({thisbutton}) => {
+    // give up button only works if during a game and not in an overlay menu
     if (!(gameover) && !(overlay)) {
-        // give up button clicked during game
+        // give up button clicked during game, register that we gave up and get the current word
         gaveup = true;
         const currentWordArr = getCurrentWordArr();
 
+        // clear out the current guess
         const size = currentWordArr.length
         for(var i = 0; i < size; i++) {
             deleteGuessedWords()
         }
 
+        // then automatically enter the solution for us
         for(var i = 0; i < 5; i++){
             let letter = target.charAt(i)
             updateGuessedWords(letter)
@@ -925,45 +1114,43 @@ giveup.onclick = ({thisbutton}) => {
     }
 }
 
+// key press events (allows typing in the words on keyboard instead of clicking if you want to type them in)
 document.addEventListener("keyup", function(event) {
+    // key press events only work if during a game and not in an overlay menu
     if (!(gameover) && !(overlay)) {
         if (event.code.slice(0, 3) == "Key") {
+            // slight hack here - if the event begins "KeyX", we read what X is, convert it to lowercase, and find the corresponding key on the keyboard
             let letter = event.code.slice(3, 4).toLowerCase();
+            // check the letter is in the keyboard (if it is not, ignore the input)
             for (let i = 0; i < keys.length; i++) {
                 if (keys[i].getAttribute("data-key") == letter) {
+                    // this key's letter is then entered as the latest word in the guess
                     updateGuessedWords(letter);
                 }
             }
         } else if (event.code == "Enter") {
+            // enter key pressed - submit the word
             handleSubmitWord();
         } else if (event.code == "Backspace") {
+            // backspace key pressed - delete the last letter
             deleteGuessedWords();
         }
     }
 })
 
+// help modal initialization
 function initHelpModal() {
+    // get help modal element reference
     const modal = document.getElementById("help-modal");
 
-    // Get the button that opens the modal
+    // get the button that opens the modal, set up the event that will open the modal when this button is clicked
     const btn = document.getElementById("help");
-
-    // Get the <span> element that closes the modal
-    // const span = document.getElementById("close-help");
-
-    // When the user clicks on the button, open the modal
     btn.addEventListener("click", function () {
         modal.style.display = "block";
         overlay = true;
     });
 
-    // When the user clicks on <span> (x), close the modal
-    //span.addEventListener("click", function () {
-    //    modal.style.display = "none";
-    //    overlay = false;
-    //});
-
-    // When the user clicks anywhere outside of the modal, close it
+    // When the user clicks anywhere outside of the modal content, close it
     window.addEventListener("click", function (event) {
         if (event.target == modal) {
             modal.style.display = "none";
@@ -972,12 +1159,15 @@ function initHelpModal() {
     });
 }
 
+// stats modal initialization
 function initStatsModal() {
+    // get stats modal element reference
     const modal = document.getElementById("stats-modal");
 
-    // Get the button that opens the modal
+    // get the button that opens the modal
     const btn = document.getElementById("stats");
 
+    // get element references for various relevant buttons and frames
     const replay = document.getElementById("replay");
     const countdowntimer = document.getElementById("countdowntimer")
     const countdown = document.getElementById("countdown");
@@ -985,17 +1175,17 @@ function initStatsModal() {
     const postgamestats = document.getElementById("postgamestats")
     const sharebutton = document.getElementById("sharebutton");
 
-    // Get the <span> element that closes the modal
-    // const span = document.getElementById("close-stats");
-
-    // When the user clicks on the button, open the modal
+    // When the user clicks on the button to open the modal, open the modal
     btn.addEventListener("click", function () {
-        // update stats here 
+        // update stats display based on local win/loss information
         updateStatsDisplay()
+        
         modal.style.display = "block";
         if (gameover) {
+            // if the game has ended, add extra elements under the win/loss stats
             postgamestats.style.display = "flex";
             if (gamemode == "daily"){
+                // daily mode version - show a countdown timer, setup countdown interval events, hide the replay button.
                 countdown.style.display = "inline-block";
                 replay.style.display = "none";
                 countdowntimer.textContent = calculate_remaining_time()
@@ -1003,36 +1193,34 @@ function initStatsModal() {
                     countdowntimer.textContent = calculate_remaining_time()
                 }, 1000);
             } else {
+                // random mode version - hide the countdown timer, show a replay button in the same spot.
                 replay.style.display = "inline-block";
                 countdown.style.display = "none";
             }
         } else {
+            // if the game has not finished yet, hide the content which will go underneath the win/loss stats
             postgamestats.style.display = "none";
         }
         overlay = true;
     });
 
+    // share button click event: generate a summary of the game and copy it to the clipboard
     sharebutton.addEventListener("click", function () {
         generate_summary();
     });
 
+    // replay click event: close the stats modal and restart the game
     replaybutton.addEventListener("click", function () {
         modal.style.display = "none";
         overlay = false;
         restart();
     });
 
-    // When the user clicks on <span> (x), close the modal
-    // span.addEventListener("click", function () {
-    //    modal.style.display = "none";
-    //    overlay = false;
-    //});
-
-    // When the user clicks anywhere outside of the modal, close it
+    // When the user clicks anywhere outside of the modal content, close it
     window.addEventListener("click", function (event) {
         if (event.target == modal) {
             modal.style.display = "none";
-            clearInterval(countdowninterval)
+            clearInterval(countdowninterval) // stop the countdown timer (no need to keep triggering it as we can't see it any more)
             overlay = false;
         }
     });
